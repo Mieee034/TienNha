@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Tiền Nhà Chung</title>
+<title>Tiền Sinh Hoạt Nhà Chung</title>
 <style>
 :root {
   --purple:#7C3AED; --purple2:#5B21B6; --purple-bg:#EDE9FE;
@@ -126,7 +126,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
 /* adjustment */
 .adj-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
   color:var(--gray);margin-bottom:5px}
-.adj-row{display:grid;grid-template-columns:1fr 1.6fr;gap:8px;margin-bottom:10px}
+.adj-row{display:flex;gap:8px;margin-bottom:10px;align-items:center}
+.adj-row .finput{flex:1;min-width:0}
+.sign-btn{width:36px;min-width:36px;height:36px;border:1.5px solid var(--border);border-radius:8px;
+  background:var(--gray-bg);font-size:20px;font-weight:700;cursor:pointer;
+  color:#6B7280;transition:all .15s;display:flex;align-items:center;justify-content:center;padding:0}
+.sign-btn.neg{background:#FEF2F2;border-color:#FCA5A5;color:#EF4444}
 
 /* toggle */
 .tog-row{display:flex;justify-content:space-between;align-items:center}
@@ -168,22 +173,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
 <body>
 
 <div class="hdr">
-  <h1>🏠 Tiền Nhà Chung</h1>
+  <h1>🏠 Tiền Sinh Hoạt Nhà Chung</h1>
   <p>Mi &amp; Bo · Theo dõi chi phí hàng tháng</p>
 </div>
 
 <div class="sum-grid">
   <div class="sum-card">
-    <div class="sum-lbl">Bo nợ Mi</div>
-    <div class="sum-amt" id="s-owed" style="color:var(--red)">—</div>
+    <div class="sum-lbl">Tổng CP <span id="s-year-lbl">năm nay</span></div>
+    <div class="sum-amt" id="s-total" style="color:var(--purple)">—</div>
   </div>
   <div class="sum-card">
-    <div class="sum-lbl">Đã giải quyết</div>
+    <div class="sum-lbl">Bo đã trả Mi</div>
     <div class="sum-amt" id="s-paid" style="color:var(--green)">—</div>
   </div>
   <div class="sum-card">
-    <div class="sum-lbl">Năm nay</div>
-    <div class="sum-amt" id="s-year" style="color:var(--purple)">—</div>
+    <div class="sum-lbl">Bo còn nợ Mi</div>
+    <div class="sum-amt" id="s-owed" style="color:var(--red)">—</div>
   </div>
 </div>
 
@@ -320,11 +325,19 @@ function save() { localStorage.setItem('tienNha_v3', JSON.stringify(D)); }
 // Merge base + user data
 function getU(b) {
   const k = key(b), u = D[k] || {};
+  // Migration: old dc/nt → dc1/nt1
+  const dc1 = u.dc1 !== undefined ? u.dc1 : (u.dc || 0);
+  const dc2 = u.dc2 || 0;
+  const dc3 = u.dc3 || 0;
   return {
     di:   (u.di !== undefined) ? u.di : b.di,
     nu:   (u.nu !== undefined) ? u.nu : b.nu,
-    dc:   u.dc  || 0,
-    nt:   u.nt  || '',
+    wi:   (u.wi !== undefined) ? u.wi : b.wi,
+    dc:   dc1 + dc2 + dc3,
+    dc1, dc2, dc3,
+    nt1:  u.nt1 || u.nt || '',
+    nt2:  u.nt2 || '',
+    nt3:  u.nt3 || '',
     paid: !!u.paid,
   };
 }
@@ -342,9 +355,9 @@ function isEditable(b) {
 // Bo trả Wifi + Nước; Mi trả Điện
 // Bo đưa cho Mi = TB − Wifi − Nước = (Điện − Wifi − Nước) / 2
 function calc(b, u) {
-  const tong = b.wi + u.di + u.nu;
+  const tong = u.wi + u.di + u.nu;
   const tb   = tong / 2;
-  const bo   = (u.di - b.wi - u.nu) / 2;
+  const bo   = (u.di - u.wi - u.nu) / 2;
   const net  = bo + u.dc;
   return {tong, tb, bo, net};
 }
@@ -432,6 +445,15 @@ function renderCard(b) {
          onblur="blurDi('${k}',this)">`
     : `<span class="fval-static">${vnd(u.di)}</span>`;
 
+  // Wifi field
+  const wiField = editable
+    ? `<input type="text" inputmode="numeric" class="finput${u.wi>0?' has':' need'}"
+         id="wi-${k}" value="${fmtNum(u.wi)}"
+         placeholder="Tiền wifi"
+         onfocus="focusNum(this)"
+         onblur="blurWi('${k}',this)">`
+    : `<span class="fval-static">${vnd(u.wi)}</span>`;
+
   // Nước field
   const nuField = editable
     ? `<input type="text" inputmode="numeric" class="finput${u.nu>0?' has':' need'}"
@@ -447,6 +469,26 @@ function renderCard(b) {
   else if (c.net < 0) { dirLbl='💸 Mi → Bo'; dirCls='neg'; }
   else                { dirLbl='✓ Hòa';       dirCls='zer'; }
 
+  // Pre-build 3 hàng điều chỉnh nợ (tránh nested template literal)
+  let adjRows = '';
+  for (let i = 1; i <= 3; i++) {
+    const dcV = u['dc'+i]||0, ntV = u['nt'+i]||'';
+    const isNeg = dcV < 0;
+    const dcFmt = dcV ? fmtNum(Math.abs(dcV)) : '';
+    const hasCls = dcV ? ' has' : '';
+    const signTxt = isNeg ? '-' : '+';
+    const negCls = isNeg ? ' neg' : '';
+    adjRows += '<div class="adj-row">'
+      + '<button type="button" class="sign-btn'+negCls+'" id="sign'+i+'-'+k+'" onclick="toggleSign(\''+k+'\','+i+')">'+signTxt+'</button>'
+      + '<input type="text" inputmode="numeric" class="finput'+hasCls+'" id="dc'+i+'-'+k+'"'
+      + ' value="'+dcFmt+'" placeholder="250.000"'
+      + ' onfocus="focusNum(this)" onblur="blurDcN(\''+k+'\',this,'+i+')">'
+      + '<input type="text" class="finput" id="nt'+i+'-'+k+'"'
+      + ' value="'+ntV.replace(/"/g,'&quot;')+'" placeholder="Ghi chú lý do..."'
+      + ' oninput="onNtN(\''+k+'\',this.value,'+i+')">'
+      + '</div>';
+  }
+
   return `
 <div class="card s-${st}" id="card-${k}">
   <div class="c-hdr">
@@ -458,8 +500,8 @@ function renderCard(b) {
     <!-- Wifi / Điện / Nước -->
     <div class="row3">
       <div class="fld">
-        <span class="flbl">📶 Wifi</span>
-        <span class="fval-static">${vnd(b.wi)}</span>
+        <span class="flbl">📶 Wifi${editable?' (nhập)':''}</span>
+        ${wiField}
       </div>
       <div class="fld">
         <span class="flbl">⚡ Điện${editable?' (nhập)':''}</span>
@@ -487,15 +529,7 @@ function renderCard(b) {
 
     <!-- Điều chỉnh nợ -->
     <div class="adj-lbl">➕➖ Cộng / Trừ nợ giữa 2 người</div>
-    <div class="adj-row">
-      <input type="text" inputmode="numeric" class="finput${u.dc?' has':''}" id="dc-${k}"
-        value="${u.dc ? fmtNum(u.dc) : ''}" placeholder="VD: 250.000 / -140.000"
-        onfocus="focusNum(this)"
-        onblur="blurDc('${k}',this)">
-      <input type="text" class="finput" id="nt-${k}"
-        value="${u.nt}" placeholder="Ghi chú lý do..."
-        oninput="onNt('${k}',this.value)">
-    </div>
+    ${adjRows}
 
     <!-- Số tiền cuối -->
     <div class="bigbox">
@@ -521,18 +555,20 @@ function renderCard(b) {
 // SUMMARY
 // ═══════════════════════════════════════════════════════
 function updateSummary() {
-  const curYear = new Date().getFullYear();
-  let owed=0, paid=0, yr=0;
-  BASE.forEach(b => {
+  // Lọc theo năm đang xem (activeYear)
+  let total=0, paid=0, owed=0;
+  BASE.filter(b => b.y === activeYear).forEach(b => {
     const u = getU(b);
     const c = calc(b, u);
-    if (!u.paid && c.net > 0) owed += c.net;
-    if ( u.paid && c.net > 0) paid += c.net;
-    if (b.y === curYear)      yr   += c.net;
+    total += c.tong;                          // tổng chi phí
+    if ( u.paid && c.net > 0) paid += c.net; // Bo đã trả
+    if (!u.paid && c.net > 0) owed += c.net; // Bo còn nợ
   });
-  document.getElementById('s-owed').textContent = owed > 0 ? vnd(owed) : '0đ';
-  document.getElementById('s-paid').textContent = vnd(paid);
-  document.getElementById('s-year').textContent = yr !== 0 ? vnd(Math.abs(yr)) : '0đ';
+  const lbl = document.getElementById('s-year-lbl');
+  if (lbl) lbl.textContent = activeYear;
+  document.getElementById('s-total').textContent = total > 0 ? vnd(total) : '0đ';
+  document.getElementById('s-paid').textContent  = paid  > 0 ? vnd(paid)  : '0đ';
+  document.getElementById('s-owed').textContent  = owed  > 0 ? vnd(owed)  : '0đ';
 }
 
 // ═══════════════════════════════════════════════════════
@@ -575,7 +611,20 @@ function getDefaultOpen(y) {
 // ═══════════════════════════════════════════════════════
 // UPDATERS
 // ═══════════════════════════════════════════════════════
-function ensureD(k) { if (!D[k]) D[k] = {dc:0,nt:'',paid:false}; }
+function ensureD(k) {
+  if (!D[k]) D[k] = {dc1:0,nt1:'',dc2:0,nt2:'',dc3:0,nt3:'',paid:false};
+  // Migration: old dc/nt format
+  if (D[k].dc !== undefined && D[k].dc1 === undefined) {
+    D[k].dc1 = D[k].dc; D[k].nt1 = D[k].nt||'';
+    delete D[k].dc; delete D[k].nt;
+  }
+  if (D[k].dc1 === undefined) D[k].dc1 = 0;
+  if (D[k].dc2 === undefined) D[k].dc2 = 0;
+  if (D[k].dc3 === undefined) D[k].dc3 = 0;
+  if (D[k].nt1 === undefined) D[k].nt1 = '';
+  if (D[k].nt2 === undefined) D[k].nt2 = '';
+  if (D[k].nt3 === undefined) D[k].nt3 = '';
+}
 
 function recalcCard(k) {
   const b = BASE.find(x => key(x)===k);
@@ -602,10 +651,12 @@ function recalcCard(k) {
   updateSummary();
 }
 
-// Focus: show raw digits so user can edit easily
+// Focus: show raw digits so user can edit easily (hỗ trợ số âm)
 function focusNum(el) {
-  const raw = parseNum(el.value);
-  el.value = raw !== 0 ? raw : '';
+  const raw = String(el.value).trim();
+  const neg = raw.startsWith('-');
+  const num = parseNum(raw.replace('-',''));
+  el.value = num !== 0 ? (neg ? '-' : '') + num : '';
 }
 
 // Blur handlers: parse → save → reformat display
@@ -629,15 +680,41 @@ function blurNu(k, el) {
   if (b) b.nu = v;
   save(); recalcCard(k);
 }
-function blurDc(k, el) {
-  // Hỗ trợ âm: "-250000" hoặc "-250.000"
-  const raw = String(el.value).trim();
-  const neg = raw.startsWith('-');
-  const v = (neg ? -1 : 1) * parseNum(raw.replace('-',''));
-  el.value = v !== 0 ? (neg ? '-' : '') + fmtNum(Math.abs(v)) : '';
-  el.classList.toggle('has', v !== 0);
-  ensureD(k); D[k].dc = v;
+function blurWi(k, el) {
+  const v = parseNum(el.value);
+  el.value = fmtNum(v);
+  el.classList.toggle('has', v > 0);
+  el.classList.toggle('need', v === 0);
+  ensureD(k); D[k].wi = v;
   save(); recalcCard(k);
+}
+// Xử lý chung cho 3 hàng điều chỉnh nợ
+function blurDcN(k, el, i) {
+  const num = parseNum(el.value);
+  const signEl = document.getElementById('sign'+i+'-'+k);
+  const neg = signEl && signEl.textContent === '-';
+  const v = neg ? -num : num;
+  el.value = num !== 0 ? fmtNum(num) : '';
+  el.classList.toggle('has', num !== 0);
+  ensureD(k); D[k]['dc'+i] = v;
+  save(); recalcCard(k);
+}
+function toggleSign(k, i) {
+  const signEl = document.getElementById('sign'+i+'-'+k);
+  const isNowNeg = signEl.textContent === '+';
+  signEl.textContent = isNowNeg ? '-' : '+';
+  signEl.classList.toggle('neg', isNowNeg);
+  // Lưu lại giá trị với dấu mới
+  const dcEl = document.getElementById('dc'+i+'-'+k);
+  const num = parseNum(dcEl.value);
+  if (num !== 0) {
+    ensureD(k); D[k]['dc'+i] = isNowNeg ? -num : num;
+    save(); recalcCard(k);
+  }
+}
+function onNtN(k, v, i) {
+  ensureD(k); D[k]['nt'+i] = v;
+  save();
 }
 function onNt(k, v) {
   ensureD(k); D[k].nt = v;
@@ -695,16 +772,16 @@ function fallbackCopy(txt) {
   alert('✅ Đã sao chép JSON!');
 }
 function openImport() {
-  document.getElementById('imp-txt').value = '';
-  document.getElementById('ov').classList.add('open');
+  document.getElementById('imp-modal').style.display='flex';
 }
-function closeImport() { document.getElementById('ov').classList.remove('open'); }
+function closeImport() {
+  document.getElementById('imp-modal').style.display='none';
+}
 function doImport() {
   try {
     const parsed = JSON.parse(document.getElementById('imp-txt').value.trim());
     if (!parsed.d) throw new Error('Không đúng định dạng');
     D = parsed.d;
-    // Khôi phục di/nu vào BASE
     BASE.forEach(b => {
       const k = key(b), u = D[k];
       if (u) { if (u.di!==undefined) b.di=u.di; if (u.nu!==undefined) b.nu=u.nu; }
@@ -714,20 +791,14 @@ function doImport() {
   } catch(e) { alert('❌ Lỗi: '+e.message); }
 }
 
-// ═══════════════════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════════════════
-// Khôi phục di/nu đã lưu
-BASE.forEach(b => {
-  const k = key(b), u = D[k];
-  if (u) {
-    if (u.di !== undefined) b.di = u.di;
-    if (u.nu !== undefined) b.nu = u.nu;
-  }
-});
-
-openMonths = getDefaultOpen(activeYear);
-render();
+window.onload = function() {
+  openMonths = getDefaultOpen(activeYear);
+  render();
+};
 </script>
-</body>
-</html>
+
+
+<div id="imp-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:16px;padding:20px;width:100%;max-width:420px">
+    <div style="font-weight:700;font-size:16px;margin-bottom:12px">📥 Nhập dữ liệu</div>
+    <textarea id="imp-txt" style="width:100%;height:1
