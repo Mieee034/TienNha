@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Tiền Nhà Chung</title>
+<style>
+:root {
+  --purple:#7C3AED; --purple2:#5B21B6; --purple-bg:#EDE9FE;
+  --green:#059669;  --green-bg:#D1FAE5;
+  --red:#DC2626;    --red-bg:#FEE2E2;
+  --yellow:#B45309; --yellow-bg:#FEF3C7;
+  --gray:#6B7280;   --gray-bg:#F3F4F6;
+  --border:#E5E7EB; --white:#fff; --bg:#F5F3FF;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg);color:#1F2937;min-height:100vh;padding-bottom:84px}
+
+/* ── HEADER ── */
+.hdr{background:linear-gradient(135deg,#7C3AED,#4C1D95);padding:16px 16px 13px;
+  text-align:center;position:sticky;top:0;z-index:50;
+  box-shadow:0 4px 20px rgba(124,58,237,.45)}
+.hdr h1{font-size:21px;font-weight:800;color:#fff;letter-spacing:-.4px}
+.hdr p{font-size:11px;color:rgba(255,255,255,.72);margin-top:2px}
+
+/* ── SUMMARY ── */
+.sum-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:11px 12px 4px}
+.sum-card{background:#fff;border-radius:13px;padding:10px 6px;text-align:center;
+  box-shadow:0 2px 8px rgba(0,0,0,.07)}
+.sum-lbl{font-size:8.5px;text-transform:uppercase;letter-spacing:.8px;
+  color:var(--gray);font-weight:700;margin-bottom:3px}
+.sum-amt{font-size:12.5px;font-weight:800}
+
+/* ── YEAR TABS ── */
+.tabs{display:flex;gap:7px;padding:10px 12px 6px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex-shrink:0;padding:7px 20px;border-radius:99px;border:2px solid var(--border);
+  background:#fff;font-size:14px;font-weight:700;cursor:pointer;color:var(--gray);
+  transition:all .2s}
+.tab.active{background:var(--purple);border-color:var(--purple);color:#fff;
+  box-shadow:0 3px 10px rgba(124,58,237,.35)}
+
+/* ── MONTH FILTER CHIPS ── */
+.mbwrap{padding:6px 12px 10px}
+.mb-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;
+  color:var(--gray);margin-bottom:8px}
+.mb-grid{display:flex;flex-wrap:wrap;gap:7px}
+
+/* Chip mặc định (chưa chọn) */
+.mb{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:7px 13px;border-radius:99px;
+  border:2px solid transparent;
+  font-size:13px;font-weight:700;cursor:pointer;
+  transition:all .18s;white-space:nowrap;
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
+}
+/* Chấm trạng thái */
+.mb::before{content:'';display:inline-block;width:7px;height:7px;
+  border-radius:50%;flex-shrink:0}
+
+/* Màu theo trạng thái */
+.mb-paid  {background:var(--green-bg); color:#065F46; border-color:var(--green-bg)}
+.mb-paid::before{background:var(--green)}
+.mb-pend  {background:var(--yellow-bg);color:#78350F; border-color:var(--yellow-bg)}
+.mb-pend::before{background:#F59E0B}
+.mb-future{background:var(--purple-bg);color:var(--purple);border-color:var(--purple-bg)}
+.mb-future::before{background:#A78BFA}
+
+/* Đang mở (selected) */
+.mb.open{border-color:transparent;box-shadow:0 3px 10px rgba(0,0,0,.18)}
+.mb-paid.open  {background:var(--green);  color:#fff}
+.mb-paid.open::before  {background:rgba(255,255,255,.7)}
+.mb-pend.open  {background:#D97706;       color:#fff}
+.mb-pend.open::before  {background:rgba(255,255,255,.7)}
+.mb-future.open{background:var(--purple); color:#fff}
+.mb-future.open::before{background:rgba(255,255,255,.7)}
+
+/* ── CARDS ── */
+.cards{padding:0 12px;display:flex;flex-direction:column;gap:10px}
+
+.card{background:#fff;border-radius:16px;overflow:hidden;
+  box-shadow:0 2px 10px rgba(0,0,0,.07);
+  border:1px solid var(--border);border-left:5px solid var(--border)}
+.card.s-paid  {border-left-color:var(--green)}
+.card.s-pend  {border-left-color:#D97706}
+.card.s-future{border-left-color:var(--purple)}
+
+/* card header */
+.c-hdr{display:flex;justify-content:space-between;align-items:center;
+  padding:11px 14px 9px;border-bottom:1px solid var(--border)}
+.c-month{font-size:20px;font-weight:800;color:var(--purple)}
+.c-yr{font-size:11px;color:var(--gray);font-weight:600}
+.badge{padding:4px 10px;border-radius:99px;font-size:11px;font-weight:700}
+.b-paid  {background:var(--green-bg);  color:var(--green)}
+.b-pend  {background:var(--yellow-bg); color:var(--yellow)}
+.b-future{background:var(--purple-bg); color:var(--purple)}
+
+/* card body */
+.c-body{padding:12px 14px}
+.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.row2{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
+.fld{display:flex;flex-direction:column;gap:3px}
+.flbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray)}
+.fval{font-size:13px;font-weight:700}
+.fval-static{font-size:13px;font-weight:700;padding:6px 0}
+
+/* Input (editable months) */
+.finput{border:1.5px solid var(--border);border-radius:8px;padding:7px 8px;
+  font-size:13px;font-weight:700;color:#1F2937;background:var(--gray-bg);
+  width:100%;outline:none;transition:all .15s}
+.finput:focus{border-color:var(--purple);background:#fff}
+.finput.need{border-color:#A78BFA;background:#F5F3FF}
+.finput.has {border-color:#6EE7B7;background:#F0FDF9}
+
+.sep{height:1px;background:var(--border);margin:8px 0}
+
+/* big amount */
+.bigbox{display:flex;justify-content:space-between;align-items:center;
+  padding:10px 14px;background:var(--gray-bg);border-radius:12px;margin-bottom:10px}
+.big-lbl{font-size:12px;font-weight:600;color:var(--gray)}
+.big-val{font-size:18px;font-weight:900}
+.pos{color:var(--green)} .neg{color:var(--red)} .zer{color:var(--gray)}
+
+/* adjustment */
+.adj-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--gray);margin-bottom:5px}
+.adj-row{display:grid;grid-template-columns:1fr 1.6fr;gap:8px;margin-bottom:10px}
+
+/* toggle */
+.tog-row{display:flex;justify-content:space-between;align-items:center}
+.tog-lbl{font-size:13px;font-weight:600;color:var(--gray)}
+.tog{position:relative;width:50px;height:27px}
+.tog input{opacity:0;width:0;height:0}
+.tog-sl{position:absolute;cursor:pointer;inset:0;background:#D1D5DB;
+  border-radius:27px;transition:.3s}
+.tog-sl::before{content:'';position:absolute;height:21px;width:21px;left:3px;bottom:3px;
+  background:#fff;border-radius:50%;transition:.3s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.tog input:checked+.tog-sl{background:var(--green)}
+.tog input:checked+.tog-sl::before{transform:translateX(23px)}
+
+/* ── BOTTOM BUTTONS ── */
+.btns{position:fixed;bottom:0;left:0;right:0;display:flex;gap:10px;
+  padding:10px 14px;background:rgba(245,243,255,.97);
+  backdrop-filter:blur(8px);border-top:1px solid var(--border)}
+.btn{flex:1;padding:12px;border:none;border-radius:12px;
+  font-size:14px;font-weight:700;cursor:pointer}
+.btn-ex{background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff}
+.btn-im{background:linear-gradient(135deg,var(--green),#047857);color:#fff}
+
+/* ── MODAL ── */
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);
+  z-index:100;align-items:flex-end;justify-content:center}
+.ov.open{display:flex}
+.modal{background:#fff;border-radius:24px 24px 0 0;
+  padding:22px 18px 40px;width:100%;max-height:80vh;overflow-y:auto}
+.modal h3{font-size:18px;font-weight:800;margin-bottom:8px}
+.modal p{font-size:12px;color:var(--gray);margin-bottom:10px}
+.modal textarea{width:100%;height:130px;border:1.5px solid var(--border);
+  border-radius:12px;padding:10px;font-size:12px;font-family:monospace;
+  resize:none;background:var(--gray-bg);margin-bottom:10px}
+.modal-btns{display:flex;gap:10px}
+.btn-cancel{background:var(--gray-bg);color:#374151;flex:1;padding:12px;
+  border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>🏠 Tiền Nhà Chung</h1>
+  <p>Mi &amp; Bo · Theo dõi chi phí hàng tháng</p>
+</div>
+
+<div class="sum-grid">
+  <div class="sum-card">
+    <div class="sum-lbl">Bo nợ Mi</div>
+    <div class="sum-amt" id="s-owed" style="color:var(--red)">—</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-lbl">Đã giải quyết</div>
+    <div class="sum-amt" id="s-paid" style="color:var(--green)">—</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-lbl">Năm nay</div>
+    <div class="sum-amt" id="s-year" style="color:var(--purple)">—</div>
+  </div>
+</div>
+
+<!-- Year tabs -->
+<div class="tabs" id="tabs"></div>
+
+<!-- Month filter buttons -->
+<div class="mbwrap">
+  <div class="mb-title">Chọn tháng để xem chi tiết</div>
+  <div class="mb-grid" id="mb-grid"></div>
+</div>
+
+<!-- Cards (chỉ tháng được chọn) -->
+<div class="cards" id="cards"></div>
+
+<!-- Bottom buttons -->
+<div class="btns">
+  <button class="btn btn-ex" onclick="doExport()">📤 Xuất dữ liệu</button>
+  <button class="btn btn-im" onclick="openImport()">📥 Nhập dữ liệu</button>
+</div>
+
+<!-- Import modal -->
+<div class="ov" id="ov" onclick="if(event.target===this)closeImport()">
+  <div class="modal">
+    <h3>📥 Nhập dữ liệu</h3>
+    <p>Dán JSON (từ nút Xuất) vào đây rồi nhấn Nhập để đồng bộ với người kia:</p>
+    <textarea id="imp-txt" placeholder='{"v":2,"d":{...}}'></textarea>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeImport()">Huỷ</button>
+      <button class="btn btn-im" onclick="doImport()">✅ Nhập</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// DỮ LIỆU GỐC
+// ═══════════════════════════════════════════════════════
+const BASE = [
+  // ── 2024 ──
+  {y:2024,m:'T4', wi:260000,di:1281000,nu:220000},
+  {y:2024,m:'T5', wi:260000,di:1690000,nu:160000},
+  {y:2024,m:'T6', wi:260000,di:1612000,nu:123000},
+  {y:2024,m:'T7', wi:260000,di:1271000,nu:123000},
+  {y:2024,m:'T8', wi:260000,di:1451000,nu:123000},
+  {y:2024,m:'T9', wi:260000,di:1093000,nu:132000},
+  {y:2024,m:'T10',wi:260000,di:1245000,nu:142000},
+  {y:2024,m:'T11',wi:260000,di:1357000,nu:193000},
+  {y:2024,m:'T12',wi:260000,di:1038000,nu:193000},
+  // ── 2025 ──
+  {y:2025,m:'T1', wi:260000,di:1110000,nu:183000},
+  {y:2025,m:'T2', wi:260000,di:1035000,nu:138000},
+  {y:2025,m:'T3', wi:260000,di:1332000,nu:165000},
+  {y:2025,m:'T4', wi:260000,di:1400000,nu:184000},
+  {y:2025,m:'T5', wi:260000,di:1635000,nu:147000},
+  {y:2025,m:'T6', wi:260000,di:1302000,nu:166000},
+  {y:2025,m:'T7', wi:260000,di:1360000,nu:184000},
+  {y:2025,m:'T8', wi:260000,di:1407000,nu:148000},
+  {y:2025,m:'T9', wi:260000,di:1300000,nu:138000},
+  {y:2025,m:'T10',wi:260000,di:1550000,nu:166000},
+  {y:2025,m:'T11',wi:260000,di:1373000,nu:180000},
+  {y:2025,m:'T12',wi:260000,di:1410000,nu:200000},
+  // ── 2026 ──
+  {y:2026,m:'T1', wi:260000,di:1309000,nu:165000},
+  {y:2026,m:'T2', wi:285000,di:1284000,nu:165000},
+  {y:2026,m:'T3', wi:285000,di:1594000,nu:183000},
+  {y:2026,m:'T4', wi:285000,di:1892000,nu:200000},
+  // T5 trở đi: nhập liệu
+  {y:2026,m:'T5', wi:285000,di:1941000,nu:0},
+  {y:2026,m:'T6', wi:285000,di:0,nu:0},
+  {y:2026,m:'T7', wi:285000,di:0,nu:0},
+  {y:2026,m:'T8', wi:285000,di:0,nu:0},
+  {y:2026,m:'T9', wi:285000,di:0,nu:0},
+  {y:2026,m:'T10',wi:285000,di:0,nu:0},
+  {y:2026,m:'T11',wi:285000,di:0,nu:0},
+  {y:2026,m:'T12',wi:285000,di:0,nu:0},
+];
+
+// Trạng thái mặc định (điều chỉnh + ghi chú + đã trả)
+const DEFAULTS = {
+  '2024-T4' :{dc:0,nt:'',paid:true},
+  '2024-T5' :{dc:0,nt:'',paid:true},
+  '2024-T6' :{dc:0,nt:'',paid:true},
+  '2024-T7' :{dc:0,nt:'',paid:true},
+  '2024-T8' :{dc:0,nt:'',paid:true},
+  '2024-T9' :{dc:0,nt:'',paid:true},
+  '2024-T10':{dc:0,nt:'',paid:true},
+  '2024-T11':{dc:0,nt:'',paid:true},
+  '2024-T12':{dc:0,nt:'',paid:true},
+  '2025-T1' :{dc:0,nt:'',paid:true},
+  '2025-T2' :{dc:0,nt:'',paid:true},
+  '2025-T3' :{dc:0,nt:'',paid:true},
+  '2025-T4' :{dc:0,nt:'',paid:true},
+  '2025-T5' :{dc:0,nt:'',paid:true},
+  '2025-T6' :{dc:0,nt:'',paid:true},
+  '2025-T7' :{dc:0,nt:'',paid:true},
+  '2025-T8' :{dc:0,nt:'',paid:true},
+  '2025-T9' :{dc:0,nt:'',paid:true},
+  '2025-T10':{dc:0,nt:'',paid:true},
+  '2025-T11':{dc:0,nt:'',paid:true},
+  '2025-T12':{dc:0,nt:'',paid:true},
+  '2026-T1' :{dc:0,nt:'',paid:true},
+  '2026-T2' :{dc:0,nt:'Thu 2 tháng điện xe sạc',paid:true},
+  '2026-T3' :{dc:250000,nt:'',paid:true},
+  '2026-T4' :{dc:-140000,nt:'',paid:true},
+  '2026-T5' :{dc:0,nt:'',paid:false},
+  '2026-T6' :{dc:0,nt:'',paid:false},
+  '2026-T7' :{dc:0,nt:'',paid:false},
+  '2026-T8' :{dc:0,nt:'',paid:false},
+  '2026-T9' :{dc:0,nt:'',paid:false},
+  '2026-T10':{dc:0,nt:'',paid:false},
+  '2026-T11':{dc:0,nt:'',paid:false},
+  '2026-T12':{dc:0,nt:'',paid:false},
+};
+
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+let D = loadState();
+let activeYear = 2026;
+let openMonths = new Set(); // các key đang mở
+
+function loadState() {
+  try {
+    const s = localStorage.getItem('tienNha_v3');
+    if (s) return JSON.parse(s);
+  } catch(e){}
+  const d = {};
+  Object.keys(DEFAULTS).forEach(k => { d[k] = {...DEFAULTS[k]}; });
+  return d;
+}
+function save() { localStorage.setItem('tienNha_v3', JSON.stringify(D)); }
+
+// Merge base + user data
+function getU(b) {
+  const k = key(b), u = D[k] || {};
+  return {
+    di:   (u.di !== undefined) ? u.di : b.di,
+    nu:   (u.nu !== undefined) ? u.nu : b.nu,
+    dc:   u.dc  || 0,
+    nt:   u.nt  || '',
+    paid: !!u.paid,
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+// LOGIC
+// ═══════════════════════════════════════════════════════
+// Tháng T5/2026 trở đi: nhập liệu
+function isEditable(b) {
+  if (b.y < 2026) return false;
+  if (b.y > 2026) return true;
+  return parseInt(b.m.replace('T','')) >= 5;
+}
+
+// Bo trả Wifi + Nước; Mi trả Điện
+// Bo đưa cho Mi = TB − Wifi − Nước = (Điện − Wifi − Nước) / 2
+function calc(b, u) {
+  const tong = b.wi + u.di + u.nu;
+  const tb   = tong / 2;
+  const bo   = (u.di - b.wi - u.nu) / 2;
+  const net  = bo + u.dc;
+  return {tong, tb, bo, net};
+}
+
+function key(b) { return b.y + '-' + b.m; }
+function mNum(b) { return parseInt(b.m.replace('T','')); }
+
+// Status của tháng
+function statusOf(b, u) {
+  const editable = isEditable(b);
+  if (editable && u.di === 0 && u.nu === 0) return 'future';
+  return u.paid ? 'paid' : 'pend';
+}
+
+// ═══════════════════════════════════════════════════════
+// FORMAT
+// ═══════════════════════════════════════════════════════
+function vnd(n)      { return Math.round(n||0).toLocaleString('vi-VN')+'đ'; }
+function vndA(n)     { return vnd(Math.abs(n)); }
+function vndRaw(n)   { return (n && n!==0) ? Math.round(n) : ''; }
+// Format for inputs: 1941000 → "1.941.000" (vi-VN dots as thousands sep)
+function fmtNum(n)   { return (n && n!==0) ? Math.round(n).toLocaleString('vi-VN') : ''; }
+function parseNum(s) { return parseInt(String(s).replace(/\./g,'').replace(/,/g,''))||0; }
+
+// ═══════════════════════════════════════════════════════
+// RENDER MONTH BUTTONS
+// ═══════════════════════════════════════════════════════
+function renderMbGrid() {
+  const months = BASE.filter(b => b.y === activeYear);
+  document.getElementById('mb-grid').innerHTML = months.map(b => {
+    const k = key(b);
+    const u = getU(b);
+    const c = calc(b, u);
+    const st = statusOf(b, u);
+    const isOpen = openMonths.has(k);
+
+    // Hiển thị số tiền nhỏ kèm tháng (nếu có)
+    const netAbs = Math.round(Math.abs(c.net));
+    const amtStr = netAbs > 0
+      ? ' <span style="font-size:10px;font-weight:600;opacity:.85">'
+        + (c.net > 0 ? '+' : '−') + fmtK(netAbs) + '</span>'
+      : '';
+
+    return `<button class="mb mb-${st}${isOpen?' open':''}"
+      onclick="toggleMonth('${k}')">${b.m}${amtStr}</button>`;
+  }).join('');
+}
+
+function fmtK(n) {
+  if (n >= 1000000) return (n/1000000).toFixed(1).replace('.0','')+'M';
+  if (n >= 1000)    return Math.round(n/1000)+'k';
+  return n;
+}
+
+// ═══════════════════════════════════════════════════════
+// RENDER CARDS
+// ═══════════════════════════════════════════════════════
+function renderCards() {
+  const months = BASE.filter(b => b.y === activeYear && openMonths.has(key(b)));
+  // Sắp xếp mới nhất lên trên
+  months.sort((a,b) => mNum(b) - mNum(a));
+  document.getElementById('cards').innerHTML = months.map(renderCard).join('');
+}
+
+function renderCard(b) {
+  const k   = key(b);
+  const u   = getU(b);
+  const c   = calc(b, u);
+  const st  = statusOf(b, u);
+  const editable = isEditable(b);
+
+  // Badge
+  const badgeMap = {
+    paid:   `<span class="badge b-paid">✅ Đã trả</span>`,
+    pend:   `<span class="badge b-pend">⏳ Chưa trả</span>`,
+    future: `<span class="badge b-future">📅 Chưa có số</span>`,
+  };
+
+  // Điện field
+  const diField = editable
+    ? `<input type="text" inputmode="numeric" class="finput${u.di>0?' has':' need'}"
+         id="di-${k}" value="${fmtNum(u.di)}"
+         placeholder="Tiền điện"
+         onfocus="focusNum(this)"
+         onblur="blurDi('${k}',this)">`
+    : `<span class="fval-static">${vnd(u.di)}</span>`;
+
+  // Nước field
+  const nuField = editable
+    ? `<input type="text" inputmode="numeric" class="finput${u.nu>0?' has':' need'}"
+         id="nu-${k}" value="${fmtNum(u.nu)}"
+         placeholder="Tiền nước"
+         onfocus="focusNum(this)"
+         onblur="blurNu('${k}',this)">`
+    : `<span class="fval-static">${vnd(u.nu)}</span>`;
+
+  // Direction
+  let dirLbl, dirCls;
+  if      (c.net > 0) { dirLbl='💸 Bo → Mi'; dirCls='pos'; }
+  else if (c.net < 0) { dirLbl='💸 Mi → Bo'; dirCls='neg'; }
+  else                { dirLbl='✓ Hòa';       dirCls='zer'; }
+
+  return `
+<div class="card s-${st}" id="card-${k}">
+  <div class="c-hdr">
+    <div><span class="c-month">${b.m}</span><span class="c-yr"> /${b.y}</span></div>
+    <div id="badge-${k}">${badgeMap[st]}</div>
+  </div>
+  <div class="c-body">
+
+    <!-- Wifi / Điện / Nước -->
+    <div class="row3">
+      <div class="fld">
+        <span class="flbl">📶 Wifi</span>
+        <span class="fval-static">${vnd(b.wi)}</span>
+      </div>
+      <div class="fld">
+        <span class="flbl">⚡ Điện${editable?' (nhập)':''}</span>
+        ${diField}
+      </div>
+      <div class="fld">
+        <span class="flbl">💧 Nước${editable?' (nhập)':''}</span>
+        ${nuField}
+      </div>
+    </div>
+
+    <!-- Tổng / TB -->
+    <div class="row2">
+      <div class="fld">
+        <span class="flbl">Tổng CP</span>
+        <span class="fval" id="tong-${k}">${vnd(c.tong)}</span>
+      </div>
+      <div class="fld">
+        <span class="flbl">TB / người</span>
+        <span class="fval" id="tb-${k}">${vnd(c.tb)}</span>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- Điều chỉnh nợ -->
+    <div class="adj-lbl">➕➖ Cộng / Trừ nợ giữa 2 người</div>
+    <div class="adj-row">
+      <input type="text" inputmode="numeric" class="finput${u.dc?' has':''}" id="dc-${k}"
+        value="${u.dc ? fmtNum(u.dc) : ''}" placeholder="VD: 250.000 / -140.000"
+        onfocus="focusNum(this)"
+        onblur="blurDc('${k}',this)">
+      <input type="text" class="finput" id="nt-${k}"
+        value="${u.nt}" placeholder="Ghi chú lý do..."
+        oninput="onNt('${k}',this.value)">
+    </div>
+
+    <!-- Số tiền cuối -->
+    <div class="bigbox">
+      <span class="big-lbl" id="dir-${k}">${dirLbl}</span>
+      <span class="big-val ${dirCls}" id="net-${k}">${vndA(c.net)}</span>
+    </div>
+
+    <!-- Đã thanh toán -->
+    <div class="tog-row">
+      <span class="tog-lbl">Đã thanh toán</span>
+      <label class="tog">
+        <input type="checkbox" id="paid-${k}" ${u.paid?'checked':''}
+          onchange="onPaid('${k}',this.checked)">
+        <span class="tog-sl"></span>
+      </label>
+    </div>
+
+  </div>
+</div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// SUMMARY
+// ═══════════════════════════════════════════════════════
+function updateSummary() {
+  const curYear = new Date().getFullYear();
+  let owed=0, paid=0, yr=0;
+  BASE.forEach(b => {
+    const u = getU(b);
+    const c = calc(b, u);
+    if (!u.paid && c.net > 0) owed += c.net;
+    if ( u.paid && c.net > 0) paid += c.net;
+    if (b.y === curYear)      yr   += c.net;
+  });
+  document.getElementById('s-owed').textContent = owed > 0 ? vnd(owed) : '0đ';
+  document.getElementById('s-paid').textContent = vnd(paid);
+  document.getElementById('s-year').textContent = yr !== 0 ? vnd(Math.abs(yr)) : '0đ';
+}
+
+// ═══════════════════════════════════════════════════════
+// TOGGLE MONTH
+// ═══════════════════════════════════════════════════════
+function toggleMonth(k) {
+  if (openMonths.has(k)) openMonths.delete(k);
+  else                   openMonths.add(k);
+  renderMbGrid();
+  renderCards();
+}
+
+// ═══════════════════════════════════════════════════════
+// YEAR TAB
+// ═══════════════════════════════════════════════════════
+function setYear(y) {
+  activeYear = y;
+  openMonths = getDefaultOpen(y);
+  render();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// Mặc định: mở 2 tháng gần nhất chưa trả; nếu hết thì mở 2 tháng cuối
+function getDefaultOpen(y) {
+  const months = BASE.filter(b => b.y === y);
+  const unpaid = months.filter(b => !getU(b).paid);
+  const set = new Set();
+  if (unpaid.length > 0) {
+    // Tháng đầu tiên chưa trả + tháng kế tiếp
+    set.add(key(unpaid[0]));
+    if (unpaid[1]) set.add(key(unpaid[1]));
+  } else {
+    // Tất cả đã trả: mở 2 tháng cuối
+    const last = months.slice(-2);
+    last.forEach(b => set.add(key(b)));
+  }
+  return set;
+}
+
+// ═══════════════════════════════════════════════════════
+// UPDATERS
+// ═══════════════════════════════════════════════════════
+function ensureD(k) { if (!D[k]) D[k] = {dc:0,nt:'',paid:false}; }
+
+function recalcCard(k) {
+  const b = BASE.find(x => key(x)===k);
+  if (!b || !openMonths.has(k)) return;
+  const u = getU(b);
+  const c = calc(b, u);
+
+  const $ = id => document.getElementById(id);
+  const el = suf => $(suf+'-'+k);
+
+  if (el('tong')) el('tong').textContent = vnd(c.tong);
+  if (el('tb'))   el('tb').textContent   = vnd(c.tb);
+
+  let dirLbl, dirCls;
+  if      (c.net > 0) { dirLbl='💸 Bo → Mi'; dirCls='pos'; }
+  else if (c.net < 0) { dirLbl='💸 Mi → Bo'; dirCls='neg'; }
+  else                { dirLbl='✓ Hòa';       dirCls='zer'; }
+
+  if (el('dir')) el('dir').textContent = dirLbl;
+  if (el('net')) { el('net').textContent = vndA(c.net); el('net').className='big-val '+dirCls; }
+
+  // Cập nhật nút tháng
+  renderMbGrid();
+  updateSummary();
+}
+
+// Focus: show raw digits so user can edit easily
+function focusNum(el) {
+  const raw = parseNum(el.value);
+  el.value = raw !== 0 ? raw : '';
+}
+
+// Blur handlers: parse → save → reformat display
+function blurDi(k, el) {
+  const v = parseNum(el.value);
+  el.value = fmtNum(v);
+  el.classList.toggle('has', v > 0);
+  el.classList.toggle('need', v === 0);
+  ensureD(k); D[k].di = v;
+  const b = BASE.find(x => key(x)===k);
+  if (b) b.di = v;
+  save(); recalcCard(k);
+}
+function blurNu(k, el) {
+  const v = parseNum(el.value);
+  el.value = fmtNum(v);
+  el.classList.toggle('has', v > 0);
+  el.classList.toggle('need', v === 0);
+  ensureD(k); D[k].nu = v;
+  const b = BASE.find(x => key(x)===k);
+  if (b) b.nu = v;
+  save(); recalcCard(k);
+}
+function blurDc(k, el) {
+  // Hỗ trợ âm: "-250000" hoặc "-250.000"
+  const raw = String(el.value).trim();
+  const neg = raw.startsWith('-');
+  const v = (neg ? -1 : 1) * parseNum(raw.replace('-',''));
+  el.value = v !== 0 ? (neg ? '-' : '') + fmtNum(Math.abs(v)) : '';
+  el.classList.toggle('has', v !== 0);
+  ensureD(k); D[k].dc = v;
+  save(); recalcCard(k);
+}
+function onNt(k, v) {
+  ensureD(k); D[k].nt = v;
+  save();
+}
+function onPaid(k, v) {
+  ensureD(k); D[k].paid = v;
+  save();
+  const card = document.getElementById('card-'+k);
+  const badge = document.getElementById('badge-'+k);
+  const st = v ? 'paid' : 'pend';
+  if (card) card.className = 'card s-'+st;
+  if (badge) badge.innerHTML = v
+    ? '<span class="badge b-paid">✅ Đã trả</span>'
+    : '<span class="badge b-pend">⏳ Chưa trả</span>';
+  renderMbGrid();
+  updateSummary();
+}
+
+// ═══════════════════════════════════════════════════════
+// FULL RENDER
+// ═══════════════════════════════════════════════════════
+function render() {
+  const years = [...new Set(BASE.map(b=>b.y))];
+  document.getElementById('tabs').innerHTML = years.map(y =>
+    `<button class="tab${y===activeYear?' active':''}" onclick="setYear(${y})">${y}</button>`
+  ).join('');
+  renderMbGrid();
+  renderCards();
+  updateSummary();
+}
+
+// ═══════════════════════════════════════════════════════
+// EXPORT / IMPORT
+// ═══════════════════════════════════════════════════════
+function doExport() {
+  // Lưu cả di/nu đã nhập vào payload
+  BASE.forEach(b => {
+    const k = key(b);
+    if (!D[k]) return;
+    D[k].di = b.di;
+    D[k].nu = b.nu;
+  });
+  const txt = JSON.stringify({v:3, d:D}, null, 2);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt)
+      .then(()=>alert('✅ Đã sao chép JSON!\n\nGửi cho người kia nhấn "Nhập dữ liệu" để sync.'))
+      .catch(()=>fallbackCopy(txt));
+  } else { fallbackCopy(txt); }
+}
+function fallbackCopy(txt) {
+  const ta = document.createElement('textarea');
+  ta.value = txt; document.body.appendChild(ta); ta.select();
+  document.execCommand('copy'); document.body.removeChild(ta);
+  alert('✅ Đã sao chép JSON!');
+}
+function openImport() {
+  document.getElementById('imp-txt').value = '';
+  document.getElementById('ov').classList.add('open');
+}
+function closeImport() { document.getElementById('ov').classList.remove('open'); }
+function doImport() {
+  try {
+    const parsed = JSON.parse(document.getElementById('imp-txt').value.trim());
+    if (!parsed.d) throw new Error('Không đúng định dạng');
+    D = parsed.d;
+    // Khôi phục di/nu vào BASE
+    BASE.forEach(b => {
+      const k = key(b), u = D[k];
+      if (u) { if (u.di!==undefined) b.di=u.di; if (u.nu!==undefined) b.nu=u.nu; }
+    });
+    save(); render(); closeImport();
+    alert('✅ Nhập thành công!');
+  } catch(e) { alert('❌ Lỗi: '+e.message); }
+}
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+// Khôi phục di/nu đã lưu
+BASE.forEach(b => {
+  const k = key(b), u = D[k];
+  if (u) {
+    if (u.di !== undefined) b.di = u.di;
+    if (u.nu !== undefined) b.nu = u.nu;
+  }
+});
+
+openMonths = getDefaultOpen(activeYear);
+render();
+</script>
+</body>
+</html>
