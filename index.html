@@ -25,7 +25,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
 .hdr p{font-size:11px;color:rgba(255,255,255,.72);margin-top:2px}
 
 /* ── SUMMARY ── */
-.sum-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:11px 12px 4px}
+.sum-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:11px 12px 4px}
 .sum-card{background:#fff;border-radius:13px;padding:10px 6px;text-align:center;
   box-shadow:0 2px 8px rgba(0,0,0,.07)}
 .sum-lbl{font-size:8.5px;text-transform:uppercase;letter-spacing:.8px;
@@ -169,12 +169,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
 .btn-cancel{background:var(--gray-bg);color:#374151;flex:1;padding:12px;
   border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer}
 </style>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 </head>
 <body>
 
 <div class="hdr">
   <h1>🏠 Tiền Sinh Hoạt Nhà Chung</h1>
   <p>Mi &amp; Bo · Theo dõi chi phí hàng tháng</p>
+  <button id="sync-btn" onclick="openSyncCfg()" style="margin-top:7px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:20px;padding:4px 14px;font-size:12px;cursor:pointer;font-weight:600">⚙️ Cài đặt Sync</button>
 </div>
 
 <div class="sum-grid">
@@ -182,10 +185,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
     <div class="sum-lbl">Tổng CP <span id="s-year-lbl">năm nay</span></div>
     <div class="sum-amt" id="s-total" style="color:var(--purple)">—</div>
   </div>
-  <div class="sum-card">
-    <div class="sum-lbl">Bo đã trả Mi</div>
-    <div class="sum-amt" id="s-paid" style="color:var(--green)">—</div>
-  </div>
+
   <div class="sum-card">
     <div class="sum-lbl">Bo còn nợ Mi</div>
     <div class="sum-amt" id="s-owed" style="color:var(--red)">—</div>
@@ -320,7 +320,75 @@ function loadState() {
   Object.keys(DEFAULTS).forEach(k => { d[k] = {...DEFAULTS[k]}; });
   return d;
 }
-function save() { localStorage.setItem('tienNha_v3', JSON.stringify(D)); }
+function save() {
+  localStorage.setItem('tienNha_v3', JSON.stringify(D));
+  if (fbEnabled && db) {
+    lastLocalSave = Date.now();
+    db.ref('tienNha/data').set(D).catch(e => console.warn('FB save:', e));
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// FIREBASE SYNC
+// ═══════════════════════════════════════════════════════
+let db = null, fbEnabled = false, lastLocalSave = 0;
+
+function initFirebase() {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('tienNha_fbcfg') || '{}');
+    if (!cfg.apiKey || !cfg.databaseURL) { setSyncBtn(false); return; }
+    if (typeof firebase === 'undefined') { setSyncBtn(false); return; }
+    if (!firebase.apps.length) firebase.initializeApp(cfg);
+    db = firebase.database();
+    fbEnabled = true;
+    db.ref('tienNha/data').on('value', snap => {
+      if (Date.now() - lastLocalSave < 3000) return;
+      const remote = snap.val();
+      if (!remote) return;
+      D = remote;
+      BASE.forEach(b => {
+        const k = key(b), u = D[k];
+        if (u) { if (u.di!==undefined) b.di=u.di; if (u.nu!==undefined) b.nu=u.nu; }
+      });
+      localStorage.setItem('tienNha_v3', JSON.stringify(D));
+      render();
+    });
+    setSyncBtn(true);
+  } catch(e) { setSyncBtn(false); console.warn('Firebase init:', e); }
+}
+
+function setSyncBtn(ok) {
+  const el = document.getElementById('sync-btn');
+  if (!el) return;
+  el.textContent = ok ? '🟢 Đang sync' : '⚙️ Cài đặt Sync';
+}
+
+function openSyncCfg() {
+  const cfg = JSON.parse(localStorage.getItem('tienNha_fbcfg') || '{}');
+  document.getElementById('fb-apikey').value = cfg.apiKey || '';
+  document.getElementById('fb-dburl').value  = cfg.databaseURL || '';
+  document.getElementById('fb-modal').style.display = 'flex';
+}
+function closeSyncCfg() {
+  document.getElementById('fb-modal').style.display = 'none';
+}
+function saveSyncCfg() {
+  const apiKey = document.getElementById('fb-apikey').value.trim();
+  const dbUrl  = document.getElementById('fb-dburl').value.trim();
+  if (!apiKey || !dbUrl) { alert('Vui lòng điền đủ API Key và Database URL'); return; }
+  localStorage.setItem('tienNha_fbcfg', JSON.stringify({apiKey, databaseURL: dbUrl}));
+  closeSyncCfg();
+  location.reload();
+}
+
+// ═══════════════════════════════════════════════════════
+// ĐÓNG CARD
+// ═══════════════════════════════════════════════════════
+function closeCard(k) {
+  openMonths.delete(k);
+  renderMbGrid();
+  renderCards();
+}
 
 // Merge base + user data
 function getU(b) {
@@ -547,6 +615,10 @@ function renderCard(b) {
       </label>
     </div>
 
+    <div style="margin-top:14px">
+      <button onclick="closeCard('${k}')" style="width:100%;padding:11px;background:#F3F4F6;border:1.5px solid #E5E7EB;border-radius:12px;font-size:14px;font-weight:700;color:#374151;cursor:pointer">← Đóng tháng này</button>
+    </div>
+
   </div>
 </div>`;
 }
@@ -556,18 +628,16 @@ function renderCard(b) {
 // ═══════════════════════════════════════════════════════
 function updateSummary() {
   // Lọc theo năm đang xem (activeYear)
-  let total=0, paid=0, owed=0;
+  let total=0, owed=0;
   BASE.filter(b => b.y === activeYear).forEach(b => {
     const u = getU(b);
     const c = calc(b, u);
-    total += c.tong;                          // tổng chi phí
-    if ( u.paid && c.net > 0) paid += c.net; // Bo đã trả
-    if (!u.paid && c.net > 0) owed += c.net; // Bo còn nợ
+    total += c.tong;
+    if (!u.paid && c.net > 0) owed += c.net;
   });
   const lbl = document.getElementById('s-year-lbl');
   if (lbl) lbl.textContent = activeYear;
   document.getElementById('s-total').textContent = total > 0 ? vnd(total) : '0đ';
-  document.getElementById('s-paid').textContent  = paid  > 0 ? vnd(paid)  : '0đ';
   document.getElementById('s-owed').textContent  = owed  > 0 ? vnd(owed)  : '0đ';
 }
 
@@ -794,6 +864,7 @@ function doImport() {
 window.onload = function() {
   openMonths = getDefaultOpen(activeYear);
   render();
+  initFirebase();
 };
 </script>
 
@@ -801,4 +872,39 @@ window.onload = function() {
 <div id="imp-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;align-items:center;justify-content:center;padding:16px">
   <div style="background:#fff;border-radius:16px;padding:20px;width:100%;max-width:420px">
     <div style="font-weight:700;font-size:16px;margin-bottom:12px">📥 Nhập dữ liệu</div>
-    <textarea id="imp-txt" style="width:100%;height:1
+    <textarea id="imp-txt" style="width:100%;height:160px;border:1.5px solid #E5E7EB;border-radius:8px;padding:8px;font-size:12px;resize:vertical" placeholder="Dán JSON vào đây..."></textarea>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button onclick="doImport()" style="flex:1;background:#7C3AED;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer">Nhập</button>
+      <button onclick="closeImport()" style="flex:1;background:#F3F4F6;color:#374151;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer">Hủy</button>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase Sync config modal -->
+<div id="fb-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:999;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:16px;padding:20px;width:100%;max-width:400px">
+    <div style="font-weight:800;font-size:16px;margin-bottom:6px">⚙️ Cài đặt Sync</div>
+    <p style="font-size:13px;color:#6B7280;margin-bottom:14px">Sau khi cài đặt, dữ liệu nhập trên điện thoại sẽ tự động hiện trên máy tính (và ngược lại) — không cần Export/Import thủ công nữa.</p>
+    <label style="font-size:13px;font-weight:700;display:block;margin-bottom:4px">API Key</label>
+    <input id="fb-apikey" type="text" placeholder="AIzaSy..." style="width:100%;border:1.5px solid #E5E7EB;border-radius:8px;padding:9px;font-size:13px;margin-bottom:10px;outline:none">
+    <label style="font-size:13px;font-weight:700;display:block;margin-bottom:4px">Database URL</label>
+    <input id="fb-dburl" type="text" placeholder="https://ten-project-default-rtdb.asia-southeast1.firebasedatabase.app" style="width:100%;border:1.5px solid #E5E7EB;border-radius:8px;padding:9px;font-size:13px;margin-bottom:10px;outline:none">
+    <details style="margin-bottom:14px;cursor:pointer">
+      <summary style="font-size:12px;color:#7C3AED;font-weight:600">📖 Hướng dẫn lấy thông tin (miễn phí)</summary>
+      <ol style="font-size:12px;color:#374151;padding-left:18px;margin-top:8px;line-height:2">
+        <li>Vào <b>console.firebase.google.com</b> → Đăng nhập Gmail</li>
+        <li><b>Add project</b> → Đặt tên (vd: tiennha) → Continue → Create</li>
+        <li>Menu trái: <b>Build → Realtime Database → Create database</b> → Singapore → <b>Test mode</b></li>
+        <li>Menu trái: ⚙️ <b>Project settings</b> → Your apps → click &lt;/&gt; (Web)</li>
+        <li>Đặt tên app → Register → Copy <b>apiKey</b> và <b>databaseURL</b> dán vào đây</li>
+      </ol>
+    </details>
+    <div style="display:flex;gap:10px">
+      <button onclick="saveSyncCfg()" style="flex:1;background:#7C3AED;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;font-size:14px;cursor:pointer">💾 Lưu &amp; Kết nối</button>
+      <button onclick="closeSyncCfg()" style="flex:1;background:#F3F4F6;color:#374151;border:none;border-radius:10px;padding:12px;font-weight:700;font-size:14px;cursor:pointer">Hủy</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>                                                                                                                                                                                                                                                                                                                                                                                
